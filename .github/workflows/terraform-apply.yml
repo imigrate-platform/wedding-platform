@@ -247,14 +247,20 @@ jobs:
           set -euo pipefail
           url="$(terraform output -raw app_url 2>/dev/null || true)"
           echo "app_url=${url}" >> "$GITHUB_OUTPUT"
+          # Each line is a full `if` rather than `[ ... ] && echo`: under
+          # set -e the group's status is that of its last command, and on a
+          # stack with none of these outputs (_shared) a bare && test returns
+          # 1 and fails the job after a successful apply.
           {
             echo "### Applied \`${{ matrix.stack }}\`"
             echo
-            [ -n "$url" ] && echo "- Live URL: ${url}"
+            if [ -n "$url" ]; then echo "- Live URL: ${url}"; fi
             fqdn="$(terraform output -raw site_fqdn 2>/dev/null || true)"
-            [ -n "$fqdn" ] && echo "- Hostname: \`${fqdn}\`"
+            if [ -n "$fqdn" ]; then echo "- Hostname: \`${fqdn}\`"; fi
             cdn="$(terraform output -raw cdn_endpoint 2>/dev/null || true)"
-            [ -n "$cdn" ] && echo "- CDN: \`${cdn}\`"
+            if [ -n "$cdn" ]; then echo "- CDN: \`${cdn}\`"; fi
+            vpc="$(terraform output -raw vpc_uuid 2>/dev/null || true)"
+            if [ -n "$vpc" ]; then echo "- VPC UUID: \`${vpc}\` (set as repository variable SHARED_VPC_UUID)"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The plan file holds cleartext secrets; do not leave it on the runner.
