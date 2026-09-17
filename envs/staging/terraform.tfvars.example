@@ -1,0 +1,40 @@
+# envs/staging/terraform.tfvars.example
+#
+# Copy to terraform.tfvars (git-ignored) or set every value as TF_VAR_*.
+# Replace every REPLACE_ME placeholder; none of them are usable as-is.
+#
+# Credentials read from the environment rather than from here:
+#   DIGITALOCEAN_TOKEN, SPACES_ACCESS_KEY_ID, SPACES_SECRET_ACCESS_KEY,
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (remote state).
+
+wedding_slug = "sandbox"
+subdomain    = "sandbox-staging"
+environment  = "staging"
+apex_domain  = "imigrate.com"
+
+region        = "blr1"
+app_region    = "blr"
+spaces_region = "blr1"
+
+# From `terraform -chdir=envs/_shared output -raw vpc_uuid`.
+# vpc_uuid = "00000000-0000-0000-0000-000000000000"
+
+github_repo    = "imigrate-apps/wedding-app"
+github_branch  = "develop"
+deploy_on_push = true
+
+instance_size_slug = "apps-s-1vcpu-0.5gb"
+db_size            = "db-s-1vcpu-1gb"
+
+bucket_force_destroy = true
+
+# Use the MSG91 sandbox template so staging cannot text real guests.
+msg91_template_id = "REPLACE_WITH_MSG91_SANDBOX_TEMPLATE_ID"
+admin_phones      = "+910000000000"
+
+# Must differ from every production stack's value.
+jwt_secret     = "REPLACE_ME_openssl_rand_base64_48"
+msg91_auth_key = "REPLACE_ME_MSG91_SANDBOX_AUTH_KEY"
+
+app_spaces_access_key_id     = "REPLACE_ME_SPACES_KEY_ID"
+app_spaces_secret_access_key = "REPLACE_ME_SPACES_SECRET"

@@ -1,0 +1,49 @@
+# ---- Terraform ------------------------------------------------------------
+.terraform/
+.terraform.tfstate.lock.info
+
+# State must never be committed. The backend is DO Spaces; a local state file
+# in the tree means someone ran without `init -backend-config`.
+*.tfstate
+*.tfstate.*
+terraform.tfstate.d/
+
+# Real variable values carry the DO token, JWT signing key and MSG91 key.
+# Only the *.example files are tracked.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Saved plans can contain resolved secret values in cleartext.
+*.tfplan
+tfplan
+tfplan.txt
+plan.json
+
+# Provider lock files ARE tracked on purpose -- do not add .terraform.lock.hcl.
+# See README "Version pinning".
+
+# Terraform crash logs
+crash.log
+crash.*.log
+
+# Override files are a local-only escape hatch
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ---- Credentials ----------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+doctl-config.yaml
+
+# ---- Editors / OS ---------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

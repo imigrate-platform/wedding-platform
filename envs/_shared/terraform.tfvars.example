@@ -1,0 +1,11 @@
+# envs/_shared/terraform.tfvars.example
+#
+# Copy to terraform.tfvars (git-ignored) or export the values as TF_VAR_*.
+# The DO token is intentionally absent -- export DIGITALOCEAN_TOKEN instead of
+# writing it to disk.
+
+apex_domain = "imigrate.com"
+region      = "blr1"
+
+# Leave unset to let DigitalOcean allocate a free /20.
+# vpc_ip_range = "10.120.0.0/20"

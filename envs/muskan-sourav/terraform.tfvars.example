@@ -1,0 +1,72 @@
+# envs/muskan-sourav/terraform.tfvars.example
+#
+# Copy to terraform.tfvars (git-ignored) for local runs, or set every value as
+# a TF_VAR_* environment variable in CI.
+#
+# NOTHING SECRET BELONGS IN THIS FILE. The three secrets below are shown as
+# obvious placeholders; replace them from your password manager and keep the
+# real terraform.tfvars out of git (.gitignore already does this).
+#
+# Credentials that are NOT variables here, because they are read from the
+# environment instead:
+#   DIGITALOCEAN_TOKEN          DO API token
+#   SPACES_ACCESS_KEY_ID        Spaces key Terraform uses to manage buckets
+#   SPACES_SECRET_ACCESS_KEY
+#   AWS_ACCESS_KEY_ID           Spaces key for the remote-state backend
+#   AWS_SECRET_ACCESS_KEY       (may be the same pair)
+
+# ----------------------------- identity ------------------------------------
+wedding_slug = "muskan-sourav"
+environment  = "production"
+apex_domain  = "imigrate.com"
+
+# ----------------------------- placement -----------------------------------
+region        = "blr1"
+app_region    = "blr"
+spaces_region = "blr1"
+
+# From `terraform -chdir=envs/_shared output -raw vpc_uuid`.
+# vpc_uuid = "00000000-0000-0000-0000-000000000000"
+
+# ----------------------------- application ---------------------------------
+github_repo    = "imigrate-apps/wedding-app"
+github_branch  = "main"
+deploy_on_push = true
+
+instance_size_slug = "apps-s-1vcpu-1gb"
+instance_count     = 1
+
+# ----------------------------- database ------------------------------------
+db_size       = "db-s-1vcpu-1gb"
+db_node_count = 1
+
+# Office egress IP, so migrations can be run by hand without disabling the
+# firewall. Leave empty if migrations run as an App Platform job.
+trusted_ip_addresses = []
+
+# ----------------------------- media ---------------------------------------
+bucket_force_destroy = false
+
+# ----------------------------- custom domain -------------------------------
+# Uncomment once the couple has bought their own domain and you have given
+# them the CNAME target from `terraform output app_default_ingress`.
+#
+# custom_domains = [
+#   { name = "example-couple-domain.com", type = "ALIAS" },
+#   { name = "www.example-couple-domain.com", type = "ALIAS" },
+# ]
+
+# ----------------------------- app config ----------------------------------
+msg91_template_id = "REPLACE_WITH_MSG91_TEMPLATE_ID"
+admin_phones      = "+910000000000,+910000000001"
+
+# ----------------------------- secrets -------------------------------------
+# Prefer exporting these as TF_VAR_jwt_secret / TF_VAR_msg91_auth_key /
+# TF_VAR_app_spaces_access_key_id / TF_VAR_app_spaces_secret_access_key.
+#
+# jwt_secret: generate with `openssl rand -base64 48`.
+jwt_secret     = "REPLACE_ME_openssl_rand_base64_48"
+msg91_auth_key = "REPLACE_ME_MSG91_AUTH_KEY"
+
+app_spaces_access_key_id     = "REPLACE_ME_SPACES_KEY_ID"
+app_spaces_secret_access_key = "REPLACE_ME_SPACES_SECRET"

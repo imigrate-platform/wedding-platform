@@ -1,0 +1,238 @@
+name: terraform-plan
+
+# Plan every stack touched by a pull request and post the plan back as a
+# sticky PR comment.
+#
+# This workflow NEVER applies. It is also the fmt/validate gate: a PR that
+# fails `terraform fmt -check` or `terraform validate` cannot merge.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "envs/**"
+      - "modules/**"
+      - "*.tf"
+      - ".github/workflows/terraform-*.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+  # id-token is requested so the job can mint an OIDC token for any future
+  # OIDC-federated backend. DigitalOcean's own API does NOT support OIDC
+  # federation today -- the DO token below is a GitHub Environment secret.
+  id-token: write
+
+concurrency:
+  group: terraform-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: "1.13.3"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  STATE_BUCKET: imigrate-tfstate
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Repo-wide formatting gate. Runs once, not per stack.
+  # -------------------------------------------------------------------------
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt -check -recursive
+        run: terraform fmt -check -recursive -diff
+
+  # -------------------------------------------------------------------------
+  # Work out which stacks this PR actually affects.
+  #
+  # A change under modules/ or to a root *.tf file affects every stack, so the
+  # matrix falls back to all of them.
+  # -------------------------------------------------------------------------
+  discover:
+    name: discover stacks
+    runs-on: ubuntu-latest
+    outputs:
+      stacks: ${{ steps.set.outputs.stacks }}
+      any: ${{ steps.set.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: set
+        name: Compute affected stacks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          all_stacks() {
+            find envs -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort
+          }
+
+          changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+
+          if echo "$changed" | grep -qE '^(modules/|[^/]+\.tf$)'; then
+            echo "Shared code changed -- planning every stack." >&2
+            stacks="$(all_stacks)"
+          else
+            stacks="$(echo "$changed" \
+              | grep -E '^envs/[^/]+/' \
+              | cut -d/ -f2 \
+              | sort -u || true)"
+          fi
+
+          if [ -z "$stacks" ]; then
+            echo "stacks=[]" >> "$GITHUB_OUTPUT"
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            json="$(echo "$stacks" | jq -R . | jq -sc .)"
+            echo "stacks=$json" >> "$GITHUB_OUTPUT"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            echo "Planning: $json" >&2
+          fi
+
+  # -------------------------------------------------------------------------
+  # One plan per affected stack.
+  # -------------------------------------------------------------------------
+  plan:
+    name: plan (${{ matrix.stack }})
+    needs: [fmt, discover]
+    if: needs.discover.outputs.any == 'true'
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.discover.outputs.stacks) }}
+
+    # Read-only credentials live in a GitHub Environment named for the stack,
+    # same as the apply workflow, so the two cannot drift apart. Plan jobs are
+    # not gated by a reviewer -- only apply is.
+    environment:
+      name: ${{ matrix.stack }}
+
+    defaults:
+      run:
+        working-directory: envs/${{ matrix.stack }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        env:
+          # Remote state lives in DO Spaces, which speaks S3.
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_ACCESS_KEY }}
+        run: |
+          key="$( [ "${{ matrix.stack }}" = "_shared" ] \
+            && echo "shared/terraform.tfstate" \
+            || echo "weddings/${{ matrix.stack }}/terraform.tfstate" )"
+          terraform init \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="key=${key}"
+
+      - name: terraform validate
+        run: terraform validate -no-color
+
+      - name: terraform plan
+        id: plan
+        env:
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          SPACES_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY_ID }}
+          SPACES_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_ACCESS_KEY }}
+          TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+          TF_VAR_msg91_auth_key: ${{ secrets.MSG91_AUTH_KEY }}
+          TF_VAR_msg91_template_id: ${{ vars.MSG91_TEMPLATE_ID }}
+          TF_VAR_admin_phones: ${{ vars.ADMIN_PHONES }}
+          TF_VAR_app_spaces_access_key_id: ${{ secrets.APP_SPACES_ACCESS_KEY_ID }}
+          TF_VAR_app_spaces_secret_access_key: ${{ secrets.APP_SPACES_SECRET_ACCESS_KEY }}
+          TF_VAR_vpc_uuid: ${{ vars.SHARED_VPC_UUID }}
+        run: |
+          set +e
+          terraform plan -no-color -lock-timeout=5m -out=tfplan
+          code=$?
+          set -e
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          exit $code
+
+      - name: Render plan
+        id: show
+        run: terraform show -no-color tfplan > plan.txt
+
+      # The saved plan can contain resolved secret values, so it is NEVER
+      # uploaded as an artifact from a pull_request run. Apply re-plans on the
+      # merge commit and applies that artifact instead.
+      - name: Comment plan on PR
+        uses: actions/github-script@v7
+        env:
+          STACK: ${{ matrix.stack }}
+        with:
+          script: |
+            const fs = require('fs');
+            const stack = process.env.STACK;
+            const marker = `<!-- terraform-plan:${stack} -->`;
+
+            let body = fs.readFileSync(
+              `${process.env.GITHUB_WORKSPACE}/envs/${stack}/plan.txt`,
+              'utf8',
+            );
+
+            // GitHub rejects comments over 65536 characters.
+            const LIMIT = 60000;
+            let truncated = '';
+            if (body.length > LIMIT) {
+              body = body.slice(-LIMIT);
+              truncated =
+                '\n> **Plan output truncated.** Only the tail is shown; ' +
+                'open the workflow run for the full plan.\n';
+            }
+
+            const comment = [
+              marker,
+              `### Terraform plan — \`${stack}\``,
+              truncated,
+              '<details><summary>Show plan</summary>',
+              '',
+              '```terraform',
+              body,
+              '```',
+              '',
+              '</details>',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const existing = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number },
+            );
+            const mine = existing.find((c) => c.body.includes(marker));
+
+            if (mine) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: mine.id, body: comment,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number, body: comment,
+              });
+            }
