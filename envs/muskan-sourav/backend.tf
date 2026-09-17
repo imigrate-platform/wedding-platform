@@ -13,7 +13,7 @@
 terraform {
   backend "s3" {
     endpoints = {
-      s3 = "https://blr1.digitaloceanspaces.com"
+      s3 = "https://sgp1.digitaloceanspaces.com"
     }
 
     region  = "us-east-1"

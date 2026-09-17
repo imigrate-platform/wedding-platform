@@ -131,24 +131,24 @@ export AWS_SECRET_ACCESS_KEY="$SPACES_SECRET_ACCESS_KEY"
 
 # 2. Create the bucket. Pick a globally unique name -- Spaces bucket names are
 #    shared across every DigitalOcean customer.
-doctl spaces bucket create imigrate-tfstate --region blr1
+doctl spaces bucket create imigrate-tfstate --region sgp1
 
 #    ...or with the AWS CLI, which also works against Spaces:
 aws s3api create-bucket \
   --bucket imigrate-tfstate \
-  --endpoint-url https://blr1.digitaloceanspaces.com
+  --endpoint-url https://sgp1.digitaloceanspaces.com
 
 # 3. Turn on versioning. This is the actual recovery mechanism for a
 #    corrupted or truncated state file -- do not skip it.
 aws s3api put-bucket-versioning \
   --bucket imigrate-tfstate \
   --versioning-configuration Status=Enabled \
-  --endpoint-url https://blr1.digitaloceanspaces.com
+  --endpoint-url https://sgp1.digitaloceanspaces.com
 
 # 4. Confirm the bucket is NOT public.
 aws s3api get-bucket-acl \
   --bucket imigrate-tfstate \
-  --endpoint-url https://blr1.digitaloceanspaces.com
+  --endpoint-url https://sgp1.digitaloceanspaces.com
 ```
 
 The state file contains the Postgres password, the JWT signing secret and the

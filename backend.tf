@@ -27,12 +27,18 @@
 # Spaces key pair -- never from this file.
 #
 # bucket/key are supplied per stack via `-backend-config`; see README.
+#
+# The state bucket lives in SGP1, not BLR1 like the workloads: on 17 Sep 2026
+# the control panel reported "Creates in this datacenter region are disabled"
+# for BLR1 Spaces, so imigrate-tfstate was created in Singapore. State holds
+# no guest data, so residency is not a concern here. The per-wedding media
+# bucket in modules/wedding-data still targets blr1 -- revisit before apply.
 # ---------------------------------------------------------------------------
 
 terraform {
   backend "s3" {
     endpoints = {
-      s3 = "https://blr1.digitaloceanspaces.com"
+      s3 = "https://sgp1.digitaloceanspaces.com"
     }
 
     region = "us-east-1"

@@ -147,12 +147,12 @@ export AWS_SECRET_ACCESS_KEY="$SPACES_SECRET_ACCESS_KEY"
 
 # Bucket names are globally unique across every DigitalOcean customer,
 # so 'imigrate-tfstate' may be taken. Add a suffix if so.
-doctl spaces bucket create imigrate-tfstate --region blr1
+doctl spaces bucket create imigrate-tfstate --region sgp1
 
 aws s3api put-bucket-versioning \
   --bucket imigrate-tfstate \
   --versioning-configuration Status=Enabled \
-  --endpoint-url https://blr1.digitaloceanspaces.com
+  --endpoint-url https://sgp1.digitaloceanspaces.com
 ```
 
 **Versioning is not optional.** It is the entire recovery mechanism for a
@@ -164,7 +164,7 @@ Confirm it is not public:
 
 ```bash
 aws s3api get-bucket-acl --bucket imigrate-tfstate \
-  --endpoint-url https://blr1.digitaloceanspaces.com
+  --endpoint-url https://sgp1.digitaloceanspaces.com
 ```
 
 ---
