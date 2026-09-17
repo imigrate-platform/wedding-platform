@@ -100,7 +100,7 @@ resource "digitalocean_vpc" "shared" {
 # This stack uses `resources`; wedding stacks use digitalocean_project_resources.
 resource "digitalocean_project" "platform" {
   name        = "imigrate-platform-shared"
-  description = "Shared platform assets: the ${var.apex_domain} DNS zone and the Terraform remote-state bucket."
+  description = "Shared platform assets: the ${var.apex_domain} DNS zone. The Terraform state bucket is managed by hand outside this project."
   purpose     = "Web Application"
   environment = "Production"
 
