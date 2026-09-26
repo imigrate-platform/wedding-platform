@@ -316,6 +316,21 @@ DigitalOcean customers. Pick another.
 `AWS_SECRET_ACCESS_KEY` must be exported, not just the `SPACES_*` pair.
 The S3 backend reads the AWS names.
 
+**`401 Unable to authenticate you` on apply, after a green plan** — the
+`DIGITALOCEAN_ACCESS_TOKEN` secret is read-only, from a different team,
+or truncated. Plan never calls the DO API on a fresh stack, so a bad token
+only surfaces at apply. Generate a Full Access token in the same team that
+owns the state bucket and update the Environment secret.
+
+**`Saved plan is stale` on a re-run** — a failed apply still writes state,
+so the plan artifact from the earlier attempt no longer matches. Use
+**Re-run all jobs** (or `workflow_dispatch` with the stack name), never
+"Re-run failed jobs" after an apply failure.
+
+**Job red after `Apply complete!`** — the apply is done and committed; the
+failure is in a later reporting step. Check which step is marked failed
+before assuming the infrastructure is missing.
+
 **Plan wants to replace the database** — stop. Changing `region`, `size` or
 engine version forces replacement and destroys the data. On a live wedding
 that is unrecoverable. Read every `# forces replacement` line before typing
